@@ -46,5 +46,32 @@ export const COMMENTS = {
   /**
    * Header for continuation comments
    */
-  CONTINUATION_HEADER: '## 🔍 Kubernetes Manifests Diff (continued)\n\n'
+  CONTINUATION_HEADER: '## 🔍 Kubernetes Manifests Diff (continued)\n\n',
+
+  /**
+   * Header template for the comment section, with placeholders for dynamic values
+   */
+  HEADER_TEMPLATE: `## 🔍 Kubernetes Manifests Diff
+
+Found **{totalCount}** differences: {addedCount} added, {removedCount} removed, {modifiedCount} modified
+
+`,
+
+  /**
+   * Footer template for the comment section, with placeholders for dynamic values
+   */
+  FOOTER_TEMPLATE: `---
+
+**Summary:** {addedCount} added, {removedCount} removed, {modifiedCount} modified
+
+<details>
+<summary>ℹ️ How to read this diff</summary>
+
+- ➕ **Added**: New Kubernetes objects that will be created
+- ➖ **Removed**: Existing Kubernetes objects that will be deleted  
+- 🔄 **Modified**: Existing Kubernetes objects that will be changed
+
+Objects are identified by: \`{apiVersion}/{kind}/{namespace}/{name}\`
+</details>
+`
 } as const

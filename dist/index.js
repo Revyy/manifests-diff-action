@@ -31580,7 +31580,32 @@ const COMMENTS = {
     /**
      * Header for continuation comments
      */
-    CONTINUATION_HEADER: '## 🔍 Kubernetes Manifests Diff (continued)\n\n'
+    CONTINUATION_HEADER: '## 🔍 Kubernetes Manifests Diff (continued)\n\n',
+    /**
+     * Header template for the comment section, with placeholders for dynamic values
+     */
+    HEADER_TEMPLATE: `## 🔍 Kubernetes Manifests Diff
+
+Found **{totalCount}** differences: {addedCount} added, {removedCount} removed, {modifiedCount} modified
+
+`,
+    /**
+     * Footer template for the comment section, with placeholders for dynamic values
+     */
+    FOOTER_TEMPLATE: `---
+
+**Summary:** {addedCount} added, {removedCount} removed, {modifiedCount} modified
+
+<details>
+<summary>ℹ️ How to read this diff</summary>
+
+- ➕ **Added**: New Kubernetes objects that will be created
+- ➖ **Removed**: Existing Kubernetes objects that will be deleted  
+- 🔄 **Modified**: Existing Kubernetes objects that will be changed
+
+Objects are identified by: \`{apiVersion}/{kind}/{namespace}/{name}\`
+</details>
+`
 };
 
 /**
@@ -35758,14 +35783,8 @@ class GitHubPRCommenter {
      * @private
      */
     getCommentHeader(diffs) {
-        const addedCount = diffs.filter((d) => d.status === 'added').length;
-        const removedCount = diffs.filter((d) => d.status === 'removed').length;
-        const modifiedCount = diffs.filter((d) => d.status === 'modified').length;
-        return `## 🔍 Kubernetes Manifests Diff
-    
-    Found **${diffs.length}** differences: ${addedCount} added, ${removedCount} removed, ${modifiedCount} modified
-    
-    `;
+        const counts = this.getDiffCounts(diffs);
+        return this.replacePlaceholders(COMMENTS.HEADER_TEMPLATE, counts);
     }
     /**
      * Formats a single manifest diff into a comment section.
@@ -35811,23 +35830,36 @@ class GitHubPRCommenter {
      * @private
      */
     getCommentFooter(diffs) {
-        const addedCount = diffs.filter((d) => d.status === 'added').length;
-        const removedCount = diffs.filter((d) => d.status === 'removed').length;
-        const modifiedCount = diffs.filter((d) => d.status === 'modified').length;
-        return `---
-    
-    **Summary:** ${addedCount} added, ${removedCount} removed, ${modifiedCount} modified
-    
-    <details>
-    <summary>ℹ️ How to read this diff</summary>
-    
-    - ➕ **Added**: New Kubernetes objects that will be created
-    - ➖ **Removed**: Existing Kubernetes objects that will be deleted  
-    - 🔄 **Modified**: Existing Kubernetes objects that will be changed
-    
-    Objects are identified by: \`{apiVersion}/{kind}/{namespace}/{name}\`
-    </details>
-    `;
+        const counts = this.getDiffCounts(diffs);
+        return this.replacePlaceholders(COMMENTS.FOOTER_TEMPLATE, counts);
+    }
+    /**
+     * Calculates counts for different types of manifest changes.
+     *
+     * @param diffs - Array of manifest differences to count
+     * @returns Object containing counts for each change type
+     * @private
+     */
+    getDiffCounts(diffs) {
+        return {
+            totalCount: diffs.length,
+            addedCount: diffs.filter((d) => d.status === 'added').length,
+            removedCount: diffs.filter((d) => d.status === 'removed').length,
+            modifiedCount: diffs.filter((d) => d.status === 'modified').length
+        };
+    }
+    /**
+     * Replaces placeholders in template strings with actual values.
+     *
+     * @param template - Template string with placeholders in {key} format
+     * @param values - Object containing values to replace placeholders
+     * @returns String with all placeholders replaced
+     * @private
+     */
+    replacePlaceholders(template, values) {
+        return template.replace(/{(\w+)}/g, (match, key) => {
+            return values[key]?.toString() || match;
+        });
     }
     /**
      * Posts a comment to the current Pull Request.

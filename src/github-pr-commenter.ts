@@ -151,15 +151,8 @@ export class GitHubPRCommenter {
    * @private
    */
   private getCommentHeader(diffs: ManifestDiff[]): string {
-    const addedCount = diffs.filter((d) => d.status === 'added').length
-    const removedCount = diffs.filter((d) => d.status === 'removed').length
-    const modifiedCount = diffs.filter((d) => d.status === 'modified').length
-
-    return `## 🔍 Kubernetes Manifests Diff
-    
-    Found **${diffs.length}** differences: ${addedCount} added, ${removedCount} removed, ${modifiedCount} modified
-    
-    `
+    const counts = this.getDiffCounts(diffs)
+    return this.replacePlaceholders(COMMENTS.HEADER_TEMPLATE, counts)
   }
 
   /**
@@ -213,24 +206,46 @@ export class GitHubPRCommenter {
    * @private
    */
   private getCommentFooter(diffs: ManifestDiff[]): string {
-    const addedCount = diffs.filter((d) => d.status === 'added').length
-    const removedCount = diffs.filter((d) => d.status === 'removed').length
-    const modifiedCount = diffs.filter((d) => d.status === 'modified').length
+    const counts = this.getDiffCounts(diffs)
+    return this.replacePlaceholders(COMMENTS.FOOTER_TEMPLATE, counts)
+  }
 
-    return `---
-    
-    **Summary:** ${addedCount} added, ${removedCount} removed, ${modifiedCount} modified
-    
-    <details>
-    <summary>ℹ️ How to read this diff</summary>
-    
-    - ➕ **Added**: New Kubernetes objects that will be created
-    - ➖ **Removed**: Existing Kubernetes objects that will be deleted  
-    - 🔄 **Modified**: Existing Kubernetes objects that will be changed
-    
-    Objects are identified by: \`{apiVersion}/{kind}/{namespace}/{name}\`
-    </details>
-    `
+  /**
+   * Calculates counts for different types of manifest changes.
+   *
+   * @param diffs - Array of manifest differences to count
+   * @returns Object containing counts for each change type
+   * @private
+   */
+  private getDiffCounts(diffs: ManifestDiff[]): {
+    totalCount: number
+    addedCount: number
+    removedCount: number
+    modifiedCount: number
+  } {
+    return {
+      totalCount: diffs.length,
+      addedCount: diffs.filter((d) => d.status === 'added').length,
+      removedCount: diffs.filter((d) => d.status === 'removed').length,
+      modifiedCount: diffs.filter((d) => d.status === 'modified').length
+    }
+  }
+
+  /**
+   * Replaces placeholders in template strings with actual values.
+   *
+   * @param template - Template string with placeholders in {key} format
+   * @param values - Object containing values to replace placeholders
+   * @returns String with all placeholders replaced
+   * @private
+   */
+  private replacePlaceholders(
+    template: string,
+    values: Record<string, string | number>
+  ): string {
+    return template.replace(/{(\w+)}/g, (match, key) => {
+      return values[key]?.toString() || match
+    })
   }
 
   /**
