@@ -20,4 +20,8 @@ describe('main.ts', () => {
   afterEach(() => {
     jest.resetAllMocks()
   })
+
+  it('should just be a placeholder test', async () => {
+    expect(true).toBe(true)
+  })
 })
