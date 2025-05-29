@@ -190,16 +190,21 @@ export class ManifestComparator {
     const maxCommentLength = 60000 // GitHub comment limit is ~65536 chars
 
     let currentComment = this.getCommentHeader(diffs)
+    const footer = this.getCommentFooter(diffs)
+    const continuationText = '\n\n---\n*Continued in next comment...*'
 
     for (const diff of diffs) {
       const diffSection = this.formatDiffSection(diff)
 
       // Check if adding this diff would exceed the comment limit
-      if (currentComment.length + diffSection.length > maxCommentLength) {
+      // Reserve space for either the footer (if last comment) or continuation text
+      const reservedSpace = footer.length + 100 // Extra buffer for safety
+      if (
+        currentComment.length + diffSection.length + reservedSpace >
+        maxCommentLength
+      ) {
         // Close current comment and start a new one
-        comments.push(
-          currentComment + '\n\n---\n*Continued in next comment...*'
-        )
+        comments.push(currentComment + continuationText)
         currentComment = `## 🔍 Kubernetes Manifests Diff (continued)\n\n`
       }
 
@@ -207,8 +212,10 @@ export class ManifestComparator {
     }
 
     // Add summary to the last comment
-    currentComment += this.getCommentFooter(diffs)
+    currentComment += footer
     comments.push(currentComment)
+
+    core.info(`Formatted ${comments.length} comments for PR`)
 
     return comments
   }

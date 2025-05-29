@@ -16,7 +16,7 @@ metadata:
   namespace: web-app
   labels:
     app: web-app
-    version: v2.0.0
+    version: v2.0.1
 spec:
   replicas: 3
   selector:

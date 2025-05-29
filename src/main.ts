@@ -26,5 +26,3 @@ export async function run(): Promise<void> {
     core.setFailed(`Action failed with error: ${error}`)
   }
 }
-
-run()
