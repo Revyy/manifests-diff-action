@@ -35634,7 +35634,7 @@ class ManifestComparator {
     }
     formatDiffsAsComments(diffs) {
         const comments = [];
-        const maxCommentLength = 1500; // GitHub comment limit is ~65536 chars
+        const maxCommentLength = 60000; // GitHub comment limit is ~65536 chars
         let currentComment = this.getCommentHeader(diffs);
         const footer = this.getCommentFooter(diffs);
         const continuationText = '\n\n---\n*Continued in next comment...*';
