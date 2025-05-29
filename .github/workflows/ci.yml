@@ -16,6 +16,7 @@ jobs:
   test-typescript:
     name: TypeScript Tests
     runs-on: ubuntu-latest
+    permissions: write-all
 
     steps:
       - name: Checkout
