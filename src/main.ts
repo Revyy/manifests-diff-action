@@ -1,5 +1,6 @@
 import * as core from '@actions/core'
 import { ManifestComparator } from './manifest-comparator.js'
+import { GitHubPRCommenter } from './github-pr-commenter.js'
 
 export async function run(): Promise<void> {
   try {
@@ -9,11 +10,12 @@ export async function run(): Promise<void> {
     const targetManifestsPath = core.getInput('target_manifests_path', {
       required: true
     })
-    const githubToken = core.getInput('github_token')
+    const githubToken =
+      core.getInput('github_token') || process.env.GITHUB_TOKEN
 
     // Set the GitHub token as environment variable for the action
-    if (githubToken) {
-      process.env.GITHUB_TOKEN = githubToken
+    if (!githubToken) {
+      throw new Error('GitHub token is required but not provided.')
     }
 
     core.info(`Comparing manifests:`)
@@ -21,7 +23,11 @@ export async function run(): Promise<void> {
     core.info(`Target branch: ${targetManifestsPath}`)
 
     const comparator = new ManifestComparator()
-    await comparator.compare(currentManifestsPath, targetManifestsPath)
+    const prCommenter = new GitHubPRCommenter(githubToken)
+
+    await prCommenter.postPullRequestComments(
+      await comparator.computeDiffs(currentManifestsPath, targetManifestsPath)
+    )
   } catch (error) {
     core.setFailed(`Action failed with error: ${error}`)
   }
