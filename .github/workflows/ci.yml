@@ -16,7 +16,6 @@ jobs:
   test-typescript:
     name: TypeScript Tests
     runs-on: ubuntu-latest
-    permissions: write-all
 
     steps:
       - name: Checkout
@@ -49,6 +48,7 @@ jobs:
   test-action:
     name: GitHub Actions Test
     runs-on: ubuntu-latest
+    permissions: write-all
 
     steps:
       - name: Checkout
@@ -61,6 +61,7 @@ jobs:
         with:
           current_manifests_path: ./__fixtures__/source.yaml
           target_manifests_path: ./__fixtures__/target.yaml
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Print Output
         id: output
