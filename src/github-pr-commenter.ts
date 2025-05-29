@@ -165,14 +165,17 @@ export class GitHubPRCommenter {
   private formatDiffSection(diff: ManifestDiff): string {
     const sections: string[] = []
 
-    sections.push(
-      `### ${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`\n`
-    )
-
     if (diff.status === 'modified' && diff.diff) {
+      sections.push(
+        `<details>\n<summary>${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`</summary>\n`
+      )
       sections.push('```diff')
       sections.push(diff.diff)
-      sections.push('```\n')
+      sections.push('```\n</details>\n')
+    } else {
+      sections.push(
+        `### ${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`\n`
+      )
     }
 
     return sections.join('\n')
