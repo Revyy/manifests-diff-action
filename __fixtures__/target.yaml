@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+data:
+  database_url: 'postgres://prod-server:5432/newdb'
+  debug: 'true'
+  new_setting: 'added_value'
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: default
+  labels:
+    app: web-app
+    version: v2.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.22
+          ports:
+            - containerPort: 80
+          env:
+            - name: ENV
+              value: 'production'
+            - name: NEW_VAR
+              value: 'added'
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: default
+spec:
+  selector:
+    app: web-app
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: new-secret
+  namespace: default
+type: Opaque
+data:
+  api_key: bmV3YXBpa2V5
+  token: dG9rZW4xMjM=
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unchanged-config
+  namespace: default
+data:
+  static_value: 'this will not change'
+  version: '1.0.0'
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migration-job
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate
+          image: migrate:latest
+          command: ['./migrate.sh']
+      restartPolicy: Never

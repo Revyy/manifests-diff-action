@@ -57,8 +57,9 @@ jobs:
         id: test-action
         uses: ./
         with:
-          milliseconds: 2000
+          current_manifests_path: ./__fixtures__/source.yaml
+          target_manifests_path: ./__fixtures__/target.yaml
 
       - name: Print Output
         id: output
-        run: echo "${{ steps.test-action.outputs.time }}"
+        run: echo "Action completed successfully"

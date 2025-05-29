@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+data:
+  database_url: 'postgres://localhost:5432/olddb'
+  debug: 'false'
+  feature_flag: 'enabled'
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: default
+  labels:
+    app: web-app
+    version: v1.0.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.20
+          ports:
+            - containerPort: 80
+          env:
+            - name: ENV
+              value: 'staging'
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: default
+spec:
+  selector:
+    app: web-app
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: old-secret
+  namespace: default
+type: Opaque
+data:
+  password: b2xkcGFzc3dvcmQ=
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unchanged-config
+  namespace: default
+data:
+  static_value: 'this will not change'
+  version: '1.0.0'
