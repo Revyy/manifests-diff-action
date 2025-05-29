@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: web-app
+data:
+  database_url: 'postgres://prod-server:5432/newdb'
+  debug: 'true'
+  new_setting: 'added_value'
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: web-app
+  labels:
+    app: web-app
+    version: v2.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      containers:
+        - name: web
+          image: nginx:1.22@sha256:2f1cd90e00fe2c991e18272bb35d6a8258eeb27785d121aa4cc1ae4c3316de42
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          env:
+            - name: ENV
+              value: 'production'
+            - name: NEW_VAR
+              value: 'added'
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: var-cache
+              mountPath: /var/cache/nginx
+            - name: var-run
+              mountPath: /var/run
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: var-cache
+          emptyDir: {}
+        - name: var-run
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: web-app
+spec:
+  selector:
+    app: web-app
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unchanged-config
+  namespace: web-app
+data:
+  static_value: 'this will not change'
+  version: '1.0.0'
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migration-job
+  namespace: web-app
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
+      containers:
+        - name: migrate
+          image: migrate:v4.15.2@sha256:84f6a6c0264ee439bf1eb8af718c5f10b2e3f96d90b8bf8a1e1e6f3f8a8e9b2a
+          imagePullPolicy: Always
+          command: ['./migrate.sh']
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      restartPolicy: Never
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-app-network-policy
+  namespace: web-app
+spec:
+  podSelector:
+    matchLabels:
+      app: web-app
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: web-app
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5432
