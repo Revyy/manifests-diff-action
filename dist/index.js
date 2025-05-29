@@ -35801,16 +35801,35 @@ class GitHubPRCommenter {
             sections.push(diff.diff);
             sections.push('```\n</details>\n');
         }
+        else if (diff.status === 'added' && diff.currentObject) {
+            sections.push(`<details>\n<summary>${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`</summary>\n`);
+            sections.push('```diff');
+            sections.push(this.formatObjectWithDiffSyntax(diff.currentObject, 'added'));
+            sections.push('```\n</details>\n');
+        }
+        else if (diff.status === 'removed' && diff.targetObject) {
+            sections.push(`<details>\n<summary>${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`</summary>\n`);
+            sections.push('```diff');
+            sections.push(this.formatObjectWithDiffSyntax(diff.targetObject, 'removed'));
+            sections.push('```\n</details>\n');
+        }
         else {
             sections.push(`### ${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`\n`);
         }
         return sections.join('\n');
     }
     /**
-     * Returns the appropriate emoji for a given diff status.
+     * Formats a Kubernetes object as YAML for display in comments.
      *
-     * @param status - The status of the manifest diff (added, removed, modified)
-     * @returns Emoji character representing the status
+     * @param obj - The Kubernetes object to format
+     * @returns YAML string representation of the object
+     * @private
+     */
+    /**
+     * Returns the appropriate emoji for the given status.
+     *
+     * @param status - The status of the manifest change
+     * @returns Emoji string representing the status
      * @private
      */
     getStatusEmoji(status) {
@@ -35824,6 +35843,32 @@ class GitHubPRCommenter {
             default:
                 return '📝';
         }
+    }
+    /**
+     * Formats a Kubernetes object with diff syntax coloring.
+     *
+     * @param obj - The Kubernetes object to format
+     * @param status - Whether the object was added or removed
+     * @returns YAML string with diff syntax prefixes for coloring
+     * @private
+     */
+    formatObjectWithDiffSyntax(obj, status) {
+        const yamlContent = this.formatObjectAsYaml(obj);
+        const prefix = status === 'added' ? '+' : '-';
+        return yamlContent
+            .split('\n')
+            .map((line) => `${prefix} ${line}`)
+            .join('\n');
+    }
+    /**
+     * Formats a Kubernetes object as YAML for display in comments.
+     *
+     * @param obj - The Kubernetes object to format
+     * @returns YAML string representation of the object
+     * @private
+     */
+    formatObjectAsYaml(obj) {
+        return dump(obj, { sortKeys: true }).trim();
     }
     /**
      * Generates the footer section for diff comments including summary and help text.

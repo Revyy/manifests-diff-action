@@ -1,6 +1,7 @@
 import * as github from '@actions/github'
 import * as core from '@actions/core'
-import { ManifestDiff } from './types.js'
+import * as yaml from 'js-yaml'
+import { KubernetesObject, ManifestDiff } from './types.js'
 import { GITHUB, COMMENTS } from './constants.js'
 
 /**
@@ -172,6 +173,24 @@ export class GitHubPRCommenter {
       sections.push('```diff')
       sections.push(diff.diff)
       sections.push('```\n</details>\n')
+    } else if (diff.status === 'added' && diff.currentObject) {
+      sections.push(
+        `<details>\n<summary>${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`</summary>\n`
+      )
+      sections.push('```diff')
+      sections.push(
+        this.formatObjectWithDiffSyntax(diff.currentObject, 'added')
+      )
+      sections.push('```\n</details>\n')
+    } else if (diff.status === 'removed' && diff.targetObject) {
+      sections.push(
+        `<details>\n<summary>${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`</summary>\n`
+      )
+      sections.push('```diff')
+      sections.push(
+        this.formatObjectWithDiffSyntax(diff.targetObject, 'removed')
+      )
+      sections.push('```\n</details>\n')
     } else {
       sections.push(
         `### ${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`\n`
@@ -180,12 +199,19 @@ export class GitHubPRCommenter {
 
     return sections.join('\n')
   }
+  /**
+   * Formats a Kubernetes object as YAML for display in comments.
+   *
+   * @param obj - The Kubernetes object to format
+   * @returns YAML string representation of the object
+   * @private
+   */
 
   /**
-   * Returns the appropriate emoji for a given diff status.
+   * Returns the appropriate emoji for the given status.
    *
-   * @param status - The status of the manifest diff (added, removed, modified)
-   * @returns Emoji character representing the status
+   * @param status - The status of the manifest change
+   * @returns Emoji string representing the status
    * @private
    */
   private getStatusEmoji(status: string): string {
@@ -199,6 +225,37 @@ export class GitHubPRCommenter {
       default:
         return '📝'
     }
+  }
+
+  /**
+   * Formats a Kubernetes object with diff syntax coloring.
+   *
+   * @param obj - The Kubernetes object to format
+   * @param status - Whether the object was added or removed
+   * @returns YAML string with diff syntax prefixes for coloring
+   * @private
+   */
+  private formatObjectWithDiffSyntax(
+    obj: KubernetesObject,
+    status: 'added' | 'removed'
+  ): string {
+    const yamlContent = this.formatObjectAsYaml(obj)
+    const prefix = status === 'added' ? '+' : '-'
+    return yamlContent
+      .split('\n')
+      .map((line) => `${prefix} ${line}`)
+      .join('\n')
+  }
+
+  /**
+   * Formats a Kubernetes object as YAML for display in comments.
+   *
+   * @param obj - The Kubernetes object to format
+   * @returns YAML string representation of the object
+   * @private
+   */
+  private formatObjectAsYaml(obj: KubernetesObject): string {
+    return yaml.dump(obj, { sortKeys: true }).trim()
   }
 
   /**
