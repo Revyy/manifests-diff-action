@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   test-typescript:
@@ -47,8 +48,6 @@ jobs:
   test-action:
     name: GitHub Actions Test
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
 
     steps:
       - name: Checkout
