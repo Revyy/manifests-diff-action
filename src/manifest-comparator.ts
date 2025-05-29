@@ -215,6 +215,8 @@ export class ManifestComparator {
     currentComment += footer
     comments.push(currentComment)
 
+    core.info(`Formatted ${comments.length} comments for PR`)
+
     return comments
   }
 

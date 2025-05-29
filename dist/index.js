@@ -35654,6 +35654,7 @@ class ManifestComparator {
         // Add summary to the last comment
         currentComment += footer;
         comments.push(currentComment);
+        coreExports.info(`Formatted ${comments.length} comments for PR`);
         return comments;
     }
     getCommentHeader(diffs) {
