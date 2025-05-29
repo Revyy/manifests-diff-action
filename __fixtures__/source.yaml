@@ -109,3 +109,34 @@ metadata:
 data:
   static_value: 'this will not change'
   version: '1.0.0'
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-app-network-policy
+  namespace: web-app
+spec:
+  podSelector:
+    matchLabels:
+      app: web-app
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: web-app
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5432
