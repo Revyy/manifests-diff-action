@@ -1,10 +1,20 @@
 import * as fs from 'fs'
 import * as yaml from 'js-yaml'
 import * as core from '@actions/core'
+import * as github from '@actions/github'
 import { createTwoFilesPatch } from 'diff'
 import { KubernetesObject, ManifestDiff } from './types.js'
 
 export class ManifestComparator {
+  private octokit: ReturnType<typeof github.getOctokit> | null = null
+
+  constructor() {
+    const token = process.env.GITHUB_TOKEN
+    if (token) {
+      this.octokit = github.getOctokit(token)
+    }
+  }
+
   async compare(
     currentManifestsPath: string,
     targetManifestsPath: string
@@ -14,12 +24,12 @@ export class ManifestComparator {
 
     const diffs = this.computeDiffs(currentObjects, targetObjects)
 
-    if (diffs.length === 0) {
-      core.info('No differences found between manifests')
-      return
+    if (this.octokit && github.context.payload.pull_request) {
+      await this.postPullRequestComments(diffs)
+    } else {
+      // Fallback to console output if not in PR context
+      this.printDiffs(diffs)
     }
-
-    this.printDiffs(diffs)
   }
 
   private async parseManifests(
@@ -104,6 +114,179 @@ export class ManifestComparator {
     }
 
     return diffs
+  }
+
+  private async postPullRequestComments(diffs: ManifestDiff[]): Promise<void> {
+    if (!this.octokit || !github.context.payload.pull_request) {
+      core.warning(
+        'GitHub token or PR context not available, falling back to console output'
+      )
+      this.printDiffs(diffs)
+      return
+    }
+
+    try {
+      // Minimize existing comments from this action
+      await this.minimizeExistingComments()
+
+      if (diffs.length === 0) {
+        await this.postComment(
+          '## 🎉 No manifest differences found\n\nAll Kubernetes manifests are identical between the current and target branches.'
+        )
+        return
+      }
+
+      const comments = this.formatDiffsAsComments(diffs)
+      for (const comment of comments) {
+        await this.postComment(comment)
+      }
+    } catch (error) {
+      core.error(`Failed to post PR comments: ${error}`)
+      // Fallback to console output
+      this.printDiffs(diffs)
+    }
+  }
+
+  private async minimizeExistingComments(): Promise<void> {
+    if (!this.octokit) return
+
+    const { owner, repo } = github.context.repo
+    const prNumber = github.context.payload.pull_request!.number
+
+    try {
+      const comments = await this.octokit.rest.issues.listComments({
+        owner,
+        repo,
+        issue_number: prNumber
+      })
+
+      const botComments = comments.data.filter(
+        (comment) =>
+          comment.user?.type === 'Bot' &&
+          comment.body?.includes('🔍 Kubernetes Manifests Diff')
+      )
+
+      for (const comment of botComments) {
+        await this.octokit.graphql(`
+          mutation {
+            minimizeComment(input: {
+              subjectId: "${comment.node_id}"
+              classifier: OUTDATED
+            }) {
+              minimizedComment {
+                isMinimized
+              }
+            }
+          }
+        `)
+      }
+    } catch (error) {
+      core.warning(`Failed to minimize existing comments: ${error}`)
+    }
+  }
+
+  private formatDiffsAsComments(diffs: ManifestDiff[]): string[] {
+    const comments: string[] = []
+    const maxCommentLength = 60000 // GitHub comment limit is ~65536 chars
+
+    let currentComment = this.getCommentHeader(diffs)
+
+    for (const diff of diffs) {
+      const diffSection = this.formatDiffSection(diff)
+
+      // Check if adding this diff would exceed the comment limit
+      if (currentComment.length + diffSection.length > maxCommentLength) {
+        // Close current comment and start a new one
+        comments.push(
+          currentComment + '\n\n---\n*Continued in next comment...*'
+        )
+        currentComment = `## 🔍 Kubernetes Manifests Diff (continued)\n\n`
+      }
+
+      currentComment += diffSection
+    }
+
+    // Add summary to the last comment
+    currentComment += this.getCommentFooter(diffs)
+    comments.push(currentComment)
+
+    return comments
+  }
+
+  private getCommentHeader(diffs: ManifestDiff[]): string {
+    const addedCount = diffs.filter((d) => d.status === 'added').length
+    const removedCount = diffs.filter((d) => d.status === 'removed').length
+    const modifiedCount = diffs.filter((d) => d.status === 'modified').length
+
+    return `## 🔍 Kubernetes Manifests Diff
+
+Found **${diffs.length}** differences: ${addedCount} added, ${removedCount} removed, ${modifiedCount} modified
+
+`
+  }
+
+  private formatDiffSection(diff: ManifestDiff): string {
+    const sections: string[] = []
+
+    sections.push(
+      `### ${this.getStatusEmoji(diff.status)} ${diff.status.toUpperCase()}: \`${diff.objectKey}\`\n`
+    )
+
+    if (diff.status === 'modified' && diff.diff) {
+      sections.push('```diff')
+      sections.push(diff.diff)
+      sections.push('```\n')
+    }
+
+    return sections.join('\n')
+  }
+
+  private getStatusEmoji(status: string): string {
+    switch (status) {
+      case 'added':
+        return '➕'
+      case 'removed':
+        return '➖'
+      case 'modified':
+        return '🔄'
+      default:
+        return '📝'
+    }
+  }
+
+  private getCommentFooter(diffs: ManifestDiff[]): string {
+    const addedCount = diffs.filter((d) => d.status === 'added').length
+    const removedCount = diffs.filter((d) => d.status === 'removed').length
+    const modifiedCount = diffs.filter((d) => d.status === 'modified').length
+
+    return `---
+
+**Summary:** ${addedCount} added, ${removedCount} removed, ${modifiedCount} modified
+
+<details>
+<summary>ℹ️ How to read this diff</summary>
+
+- ➕ **Added**: New Kubernetes objects that will be created
+- ➖ **Removed**: Existing Kubernetes objects that will be deleted  
+- 🔄 **Modified**: Existing Kubernetes objects that will be changed
+
+Objects are identified by: \`{apiVersion}/{kind}/{namespace}/{name}\`
+</details>
+`
+  }
+
+  private async postComment(body: string): Promise<void> {
+    if (!this.octokit) return
+
+    const { owner, repo } = github.context.repo
+    const prNumber = github.context.payload.pull_request!.number
+
+    await this.octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body
+    })
   }
 
   private printDiffs(diffs: ManifestDiff[]): void {

@@ -9,6 +9,12 @@ export async function run(): Promise<void> {
     const targetManifestsPath = core.getInput('target_manifests_path', {
       required: true
     })
+    const githubToken = core.getInput('github_token')
+
+    // Set the GitHub token as environment variable for the action
+    if (githubToken) {
+      process.env.GITHUB_TOKEN = githubToken
+    }
 
     core.info(`Comparing manifests:`)
     core.info(`Current branch: ${currentManifestsPath}`)
