@@ -61,7 +61,7 @@ Found **{totalCount}** differences: {addedCount} added, {removedCount} removed, 
    * Footer template for the comment section, with placeholders for dynamic values
    */
   FOOTER_TEMPLATE: `
----
+<hr>
 
 **Summary:** {addedCount} added, {removedCount} removed, {modifiedCount} modified
 
