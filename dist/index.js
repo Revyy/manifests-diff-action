@@ -31574,18 +31574,22 @@ const KUBERNETES = {
  */
 const COMMENTS = {
     /**
+     * Default title for diff comments
+     */
+    DEFAULT_TITLE: 'Kubernetes Manifests Diff',
+    /**
      * Text shown when a comment is continued in the next comment
      */
     CONTINUATION_TEXT: '\n\n---\n*Continued in next comment...*',
     /**
      * Header for continuation comments
      */
-    CONTINUATION_HEADER: '## 🔍 Kubernetes Manifests Diff (continued)\n\n',
+    CONTINUATION_HEADER: '## 🔍 {title} (continued)\n\n',
     /**
      * Header template for the comment section, with placeholders for dynamic values
      */
-    HEADER_TEMPLATE: `## 🔍 Kubernetes Manifests Diff
-
+    HEADER_TEMPLATE: `## 🔍 {title}
+{subtitle}
 Found **{totalCount}** differences: {addedCount} added, {removedCount} removed, {modifiedCount} modified
 
 `,
@@ -35667,13 +35671,19 @@ var githubExports = requireGithub();
  */
 class GitHubPRCommenter {
     octokit;
+    title;
+    subtitle;
     /**
      * Creates a new GitHubPRCommenter instance.
      *
      * @param token - GitHub personal access token for API authentication
+     * @param title - Custom title for the diff comment
+     * @param subtitle - Optional subtitle for additional context
      */
-    constructor(token) {
+    constructor(token, title = COMMENTS.DEFAULT_TITLE, subtitle = '') {
         this.octokit = githubExports.getOctokit(token);
+        this.title = title;
+        this.subtitle = subtitle;
     }
     /**
      * Posts manifest differences as comments on a GitHub Pull Request.
@@ -35723,7 +35733,7 @@ class GitHubPRCommenter {
                 issue_number: prNumber
             });
             const botComments = comments.data.filter((comment) => comment.user?.type === 'Bot' &&
-                comment.body?.includes('🔍 Kubernetes Manifests Diff'));
+                comment.body?.includes(`🔍 ${this.title}`));
             for (const comment of botComments) {
                 await this.octokit.graphql(`
               mutation {
@@ -35766,7 +35776,9 @@ class GitHubPRCommenter {
                 maxCommentLength) {
                 // Close current comment and start a new one
                 comments.push(currentComment + continuationText);
-                currentComment = COMMENTS.CONTINUATION_HEADER;
+                currentComment = this.replacePlaceholders(COMMENTS.CONTINUATION_HEADER, {
+                    title: this.title
+                });
             }
             currentComment += diffSection;
         }
@@ -35785,7 +35797,12 @@ class GitHubPRCommenter {
      */
     getCommentHeader(diffs) {
         const counts = this.getDiffCounts(diffs);
-        return this.replacePlaceholders(COMMENTS.HEADER_TEMPLATE, counts);
+        const values = {
+            ...counts,
+            title: this.title,
+            subtitle: this.subtitle ? `\n${this.subtitle}\n` : ''
+        };
+        return this.replacePlaceholders(COMMENTS.HEADER_TEMPLATE, values);
     }
     /**
      * Formats a single manifest diff into a comment section.
@@ -35967,6 +35984,8 @@ async function run() {
             required: true
         });
         const githubToken = coreExports.getInput('github_token') || process.env.GITHUB_TOKEN;
+        const title = coreExports.getInput('title') || COMMENTS.DEFAULT_TITLE;
+        const subtitle = coreExports.getInput('subtitle');
         // Set the GitHub token as environment variable for the action
         if (!githubToken) {
             throw new Error('GitHub token is required but not provided.');
@@ -35975,8 +35994,9 @@ async function run() {
         coreExports.info(`Current branch: ${currentManifestsPath}`);
         coreExports.info(`Target branch: ${targetManifestsPath}`);
         const comparator = new ManifestComparator();
-        const prCommenter = new GitHubPRCommenter(githubToken);
-        await prCommenter.postPullRequestComments(await comparator.computeDiffs(currentManifestsPath, targetManifestsPath));
+        const diffs = await comparator.computeDiffs(currentManifestsPath, targetManifestsPath);
+        const commenter = new GitHubPRCommenter(githubToken, title, subtitle);
+        await commenter.postPullRequestComments(diffs);
     }
     catch (error) {
         coreExports.setFailed(`Action failed with error: ${error}`);
