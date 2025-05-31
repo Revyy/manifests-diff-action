@@ -14,6 +14,16 @@ inputs:
     description: 'GitHub token for posting comments'
     required: false
     default: ${{ github.token }}
+  title:
+    description:
+      'Custom title for the diff comment (default: "Kubernetes Manifests Diff")'
+    required: false
+    default: 'Kubernetes Manifests Diff'
+  subtitle:
+    description:
+      'Optional subtitle to add below the title for additional context'
+    required: false
+    default: ''
 
 runs:
   using: 'node20'

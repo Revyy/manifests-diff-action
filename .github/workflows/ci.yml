@@ -64,6 +64,8 @@ jobs:
           current_manifests_path: ./__fixtures__/source.yaml
           target_manifests_path: ./__fixtures__/target.yaml
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          title: 'Kubernetes Manifests Diff - Test Run'
+          subtitle: 'This is a test run of the GitHub Action'
 
       - name: Print Output
         id: output
