@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
 import { ManifestComparator } from './manifest-comparator.js'
 import { GitHubPRCommenter } from './github-pr-commenter.js'
+import { COMMENTS } from './constants.js'
 
 export async function run(): Promise<void> {
   try {
@@ -12,6 +13,8 @@ export async function run(): Promise<void> {
     })
     const githubToken =
       core.getInput('github_token') || process.env.GITHUB_TOKEN
+    const title = core.getInput('title') || COMMENTS.DEFAULT_TITLE
+    const subtitle = core.getInput('subtitle')
 
     // Set the GitHub token as environment variable for the action
     if (!githubToken) {
@@ -23,11 +26,13 @@ export async function run(): Promise<void> {
     core.info(`Target branch: ${targetManifestsPath}`)
 
     const comparator = new ManifestComparator()
-    const prCommenter = new GitHubPRCommenter(githubToken)
-
-    await prCommenter.postPullRequestComments(
-      await comparator.computeDiffs(currentManifestsPath, targetManifestsPath)
+    const diffs = await comparator.computeDiffs(
+      currentManifestsPath,
+      targetManifestsPath
     )
+
+    const commenter = new GitHubPRCommenter(githubToken, title, subtitle)
+    await commenter.postPullRequestComments(diffs)
   } catch (error) {
     core.setFailed(`Action failed with error: ${error}`)
   }

@@ -10,14 +10,24 @@ import { GITHUB, COMMENTS } from './constants.js'
  */
 export class GitHubPRCommenter {
   private octokit: ReturnType<typeof github.getOctokit>
+  private title: string
+  private subtitle: string
 
   /**
    * Creates a new GitHubPRCommenter instance.
    *
    * @param token - GitHub personal access token for API authentication
+   * @param title - Custom title for the diff comment
+   * @param subtitle - Optional subtitle for additional context
    */
-  constructor(token: string) {
+  constructor(
+    token: string,
+    title: string = COMMENTS.DEFAULT_TITLE,
+    subtitle: string = ''
+  ) {
     this.octokit = github.getOctokit(token)
+    this.title = title
+    this.subtitle = subtitle
   }
 
   /**
@@ -79,7 +89,7 @@ export class GitHubPRCommenter {
       const botComments = comments.data.filter(
         (comment) =>
           comment.user?.type === 'Bot' &&
-          comment.body?.includes('🔍 Kubernetes Manifests Diff')
+          comment.body?.includes(`🔍 ${this.title}`)
       )
 
       for (const comment of botComments) {
@@ -129,7 +139,12 @@ export class GitHubPRCommenter {
       ) {
         // Close current comment and start a new one
         comments.push(currentComment + continuationText)
-        currentComment = COMMENTS.CONTINUATION_HEADER
+        currentComment = this.replacePlaceholders(
+          COMMENTS.CONTINUATION_HEADER,
+          {
+            title: this.title
+          }
+        )
       }
 
       currentComment += diffSection
@@ -153,7 +168,12 @@ export class GitHubPRCommenter {
    */
   private getCommentHeader(diffs: ManifestDiff[]): string {
     const counts = this.getDiffCounts(diffs)
-    return this.replacePlaceholders(COMMENTS.HEADER_TEMPLATE, counts)
+    const values = {
+      ...counts,
+      title: this.title,
+      subtitle: this.subtitle ? `\n${this.subtitle}\n` : ''
+    }
+    return this.replacePlaceholders(COMMENTS.HEADER_TEMPLATE, values)
   }
 
   /**

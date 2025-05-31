@@ -39,6 +39,11 @@ export const KUBERNETES = {
  */
 export const COMMENTS = {
   /**
+   * Default title for diff comments
+   */
+  DEFAULT_TITLE: 'Kubernetes Manifests Diff',
+
+  /**
    * Text shown when a comment is continued in the next comment
    */
   CONTINUATION_TEXT: '\n\n---\n*Continued in next comment...*',
@@ -46,13 +51,13 @@ export const COMMENTS = {
   /**
    * Header for continuation comments
    */
-  CONTINUATION_HEADER: '## 🔍 Kubernetes Manifests Diff (continued)\n\n',
+  CONTINUATION_HEADER: '## 🔍 {title} (continued)\n\n',
 
   /**
    * Header template for the comment section, with placeholders for dynamic values
    */
-  HEADER_TEMPLATE: `## 🔍 Kubernetes Manifests Diff
-
+  HEADER_TEMPLATE: `## 🔍 {title}
+{subtitle}
 Found **{totalCount}** differences: {addedCount} added, {removedCount} removed, {modifiedCount} modified
 
 `,

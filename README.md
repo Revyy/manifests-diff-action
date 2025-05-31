@@ -64,6 +64,8 @@ jobs:
           current_manifests_path: current-manifests.yaml
           target_manifests_path: target-manifests.yaml
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          title: 'Helm Chart Changes'
+          subtitle: 'Changes detected in production environment'
 ```
 
 ### Example Comment
@@ -72,11 +74,13 @@ jobs:
 
 ## Inputs
 
-| Input                    | Description                                                      | Required | Default               |
-| ------------------------ | ---------------------------------------------------------------- | -------- | --------------------- |
-| `current_manifests_path` | Path to the file containing manifests from the current PR branch | Yes      |                       |
-| `target_manifests_path`  | Path to the file containing manifests from the target branch     | Yes      |                       |
-| `github_token`           | GitHub token for posting comments                                | No       | `${{ github.token }}` |
+| Input                    | Description                                                      | Required | Default                     |
+| ------------------------ | ---------------------------------------------------------------- | -------- | --------------------------- |
+| `current_manifests_path` | Path to the file containing manifests from the current PR branch | Yes      |                             |
+| `target_manifests_path`  | Path to the file containing manifests from the target branch     | Yes      |                             |
+| `github_token`           | GitHub token for posting comments                                | No       | `${{ github.token }}`       |
+| `title`                  | Custom title for the diff comment                                | No       | `Kubernetes Manifests Diff` |
+| `subtitle`               | Optional subtitle to add below the title for additional context  | No       |                             |
 
 ## Object Identification
 
