@@ -1,13 +1,20 @@
 # Kubernetes Manifests Diff Action
 
-A GitHub Action that compares Kubernetes manifests between the current PR branch
-and the target branch, showing detailed diffs for each object.
+A GitHub Action that compares Kubernetes manifests, showing detailed diffs for
+each object. It is meant to be used in pull requests to help developers
+understand changes in Kubernetes resources between branches.
+
+This action can be used with both Helm templates and Kustomize builds, allowing
+you to generate manifests from your current branch and a target branch (e.g.,
+the base branch of a pull request) and compare them.
+
+See the [example workflow](#usage) below for an example of how to set it up in
+your GitHub Actions.
 
 ## Features
 
 - Compares individual Kubernetes objects between branches
 - Shows added, removed, and modified objects
-- Generates detailed diffs using the `diff` package
 - Supports both Helm template and Kustomize build outputs
 - Excludes objects with no differences from results
 
@@ -21,39 +28,55 @@ jobs:
   compare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Checkout current branch
+      - name: Checkout current branch
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          path: current
+
+      # Checkout target branch
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: target
 
       # Generate manifests for current branch
       - name: Generate current manifests
         run: |
           # Example with Helm
-          helm template ./chart > current-manifests.yaml
+          helm template ./current/chart > current-manifests.yaml
           # Or with Kustomize
-          # kustomize build ./overlay > current-manifests.yaml
+          # kustomize build ./current/overlay > current-manifests.yaml
 
       # Generate manifests for target branch
       - name: Generate target manifests
         run: |
-          git checkout ${{ github.base_ref }}
-          helm template ./chart > target-manifests.yaml
-          git checkout ${{ github.head_ref }}
+          # Example with Helm
+          helm template ./target/chart > target-manifests.yaml
+          # Or with Kustomize
+          # kustomize build ./target/overlay > target-manifests.yaml
 
       # Compare manifests
       - name: Compare manifests
-        uses: ./
+        uses: revyy/manifests-diff-action@v1.0.0
         with:
-          current-manifests-path: current-manifests.yaml
-          target-manifests-path: target-manifests.yaml
+          current_manifests_path: current-manifests.yaml
+          target_manifests_path: target-manifests.yaml
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+### Example Comment
+
+![Example Comment](content/comment.png)
 
 ## Inputs
 
-| Input                    | Description                                                      | Required |
-| ------------------------ | ---------------------------------------------------------------- | -------- |
-| `current-manifests-path` | Path to the file containing manifests from the current PR branch | Yes      |
-| `target-manifests-path`  | Path to the file containing manifests from the target branch     | Yes      |
+| Input                    | Description                                                      | Required | Default               |
+| ------------------------ | ---------------------------------------------------------------- | -------- | --------------------- |
+| `current_manifests_path` | Path to the file containing manifests from the current PR branch | Yes      |                       |
+| `target_manifests_path`  | Path to the file containing manifests from the target branch     | Yes      |                       |
+| `github_token`           | GitHub token for posting comments                                | No       | `${{ github.token }}` |
 
 ## Object Identification
 
@@ -62,11 +85,7 @@ Objects are identified by their unique key:
 
 ## Output
 
-The action prints detailed diffs to the console showing:
-
-- ➕ Added objects
-- ➖ Removed objects
-- 🔄 Modified objects with unified diff format
+One or more comments posted in the pull-request detailing the differences.
 
 ## Development
 
@@ -99,12 +118,6 @@ following steps:
    commits, tags and branches to the remote repository. From here, you will need
    to create a new release in GitHub so users can easily reference the new tags
    in their workflows.
-
-### Future Enhancements
-
-- Post diff comments directly to pull requests
-- Support for custom filtering rules
-- Integration with GitHub's suggestion feature
 
 ### Dependency License Management
 
