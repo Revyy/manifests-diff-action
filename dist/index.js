@@ -31685,17 +31685,29 @@ class ManifestComparator {
         for (const doc of documents) {
             try {
                 const parsed = load(doc.trim());
-                if (parsed && parsed.kind && parsed.metadata?.name) {
+                if (this.isValidKubernetesObject(parsed)) {
                     const key = this.getObjectKey(parsed);
                     objects.set(key, parsed);
                 }
+                else {
+                    throw new Error(`Invalid Kubernetes object in ${filePath}: ${JSON.stringify(parsed)}`);
+                }
             }
             catch (error) {
-                coreExports.warning(`Failed to parse YAML document: ${error}`);
+                throw new Error(`Failed to parse YAML document in ${filePath}: ${error}`);
             }
         }
         coreExports.info(`Parsed ${objects.size} objects from ${filePath}`);
         return objects;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    isValidKubernetesObject(obj) {
+        return (obj &&
+            typeof obj === 'object' &&
+            typeof obj.kind === 'string' &&
+            typeof obj.apiVersion === 'string' &&
+            obj.metadata &&
+            typeof obj.metadata.name === 'string');
     }
     /**
      * Generates a unique key for a Kubernetes object based on its metadata.
