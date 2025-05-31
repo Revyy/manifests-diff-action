@@ -97,17 +97,36 @@ export class ManifestComparator {
     for (const doc of documents) {
       try {
         const parsed = yaml.load(doc.trim()) as KubernetesObject
-        if (parsed && parsed.kind && parsed.metadata?.name) {
+
+        if (this.isValidKubernetesObject(parsed)) {
           const key = this.getObjectKey(parsed)
           objects.set(key, parsed)
+        } else {
+          throw new Error(
+            `Invalid Kubernetes object in ${filePath}: ${JSON.stringify(parsed)}`
+          )
         }
       } catch (error) {
-        core.warning(`Failed to parse YAML document: ${error}`)
+        throw new Error(
+          `Failed to parse YAML document in ${filePath}: ${error}`
+        )
       }
     }
 
     core.info(`Parsed ${objects.size} objects from ${filePath}`)
     return objects
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private isValidKubernetesObject(obj: any): boolean {
+    return (
+      obj &&
+      typeof obj === 'object' &&
+      typeof obj.kind === 'string' &&
+      typeof obj.apiVersion === 'string' &&
+      obj.metadata &&
+      typeof obj.metadata.name === 'string'
+    )
   }
 
   /**
