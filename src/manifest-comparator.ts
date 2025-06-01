@@ -89,28 +89,21 @@ export class ManifestComparator {
     const content = await fs.promises.readFile(filePath, 'utf8')
     const objects = new Map<string, KubernetesObject>()
 
-    // Split by YAML document separator and parse each document
-    const documents = content
-      .split(KUBERNETES.DOCUMENT_SEPARATOR)
-      .filter((doc) => doc.trim())
+    try {
+      const documents = yaml.loadAll(content) as KubernetesObject[]
 
-    for (const doc of documents) {
-      try {
-        const parsed = yaml.load(doc.trim()) as KubernetesObject
-
-        if (this.isValidKubernetesObject(parsed)) {
-          const key = this.getObjectKey(parsed)
-          objects.set(key, parsed)
+      for (const doc of documents) {
+        if (this.isValidKubernetesObject(doc)) {
+          const key = this.getObjectKey(doc)
+          objects.set(key, doc)
         } else {
           throw new Error(
-            `Invalid Kubernetes object in ${filePath}: ${JSON.stringify(parsed)}`
+            `Invalid Kubernetes object in ${filePath}: ${JSON.stringify(doc)}`
           )
         }
-      } catch (error) {
-        throw new Error(
-          `Failed to parse YAML document in ${filePath}: ${error}`
-        )
       }
+    } catch (error) {
+      throw new Error(`Failed to parse YAML document in ${filePath}: ${error}`)
     }
 
     core.info(`Parsed ${objects.size} objects from ${filePath}`)

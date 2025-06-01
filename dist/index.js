@@ -30059,22 +30059,28 @@ function loadDocuments(input, options) {
 }
 
 
-function load$1(input, options) {
+function loadAll$1(input, iterator, options) {
+  if (iterator !== null && typeof iterator === 'object' && typeof options === 'undefined') {
+    options = iterator;
+    iterator = null;
+  }
+
   var documents = loadDocuments(input, options);
 
-  if (documents.length === 0) {
-    /*eslint-disable no-undefined*/
-    return undefined;
-  } else if (documents.length === 1) {
-    return documents[0];
+  if (typeof iterator !== 'function') {
+    return documents;
   }
-  throw new exception('expected a single document in the stream, but found more');
+
+  for (var index = 0, length = documents.length; index < length; index += 1) {
+    iterator(documents[index]);
+  }
 }
-var load_1    = load$1;
+
+
+var loadAll_1 = loadAll$1;
 
 var loader = {
-	load: load_1
-};
+	loadAll: loadAll_1};
 
 /*eslint-disable no-use-before-define*/
 
@@ -31043,7 +31049,7 @@ var dump_1 = dump$1;
 var dumper = {
 	dump: dump_1
 };
-var load                = loader.load;
+var loadAll             = loader.loadAll;
 var dump                = dumper.dump;
 
 class Diff {
@@ -31563,12 +31569,7 @@ const KUBERNETES = {
     /**
      * Default namespace used when a Kubernetes object doesn't specify one
      */
-    DEFAULT_NAMESPACE: 'default',
-    /**
-     * YAML document separator used to split multi-document files
-     */
-    DOCUMENT_SEPARATOR: /^---$/m
-};
+    DEFAULT_NAMESPACE: 'default'};
 /**
  * Comment formatting constants
  */
@@ -31678,24 +31679,20 @@ class ManifestComparator {
     async parseManifests(filePath) {
         const content = await require$$1.promises.readFile(filePath, 'utf8');
         const objects = new Map();
-        // Split by YAML document separator and parse each document
-        const documents = content
-            .split(KUBERNETES.DOCUMENT_SEPARATOR)
-            .filter((doc) => doc.trim());
-        for (const doc of documents) {
-            try {
-                const parsed = load(doc.trim());
-                if (this.isValidKubernetesObject(parsed)) {
-                    const key = this.getObjectKey(parsed);
-                    objects.set(key, parsed);
+        try {
+            const documents = loadAll(content);
+            for (const doc of documents) {
+                if (this.isValidKubernetesObject(doc)) {
+                    const key = this.getObjectKey(doc);
+                    objects.set(key, doc);
                 }
                 else {
-                    throw new Error(`Invalid Kubernetes object in ${filePath}: ${JSON.stringify(parsed)}`);
+                    throw new Error(`Invalid Kubernetes object in ${filePath}: ${JSON.stringify(doc)}`);
                 }
             }
-            catch (error) {
-                throw new Error(`Failed to parse YAML document in ${filePath}: ${error}`);
-            }
+        }
+        catch (error) {
+            throw new Error(`Failed to parse YAML document in ${filePath}: ${error}`);
         }
         coreExports.info(`Parsed ${objects.size} objects from ${filePath}`);
         return objects;
