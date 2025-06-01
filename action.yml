@@ -24,6 +24,12 @@ inputs:
       'Optional subtitle to add below the title for additional context'
     required: false
     default: ''
+  max_comment_char_len:
+    description:
+      'Maximum length of a single comment. If exceeded, the comment will be
+      split.'
+    required: false
+    default: '600000'
 
 runs:
   using: 'node20'
