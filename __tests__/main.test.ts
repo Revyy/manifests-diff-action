@@ -33,18 +33,20 @@ const mockOctokit = {
 }
 
 // Mock github octokit
-jest.unstable_mockModule('@actions/github', () => ({
-  context: {
-    repo: {
-      owner: 'test-owner',
-      repo: 'test-repo'
-    },
-    payload: {
-      pull_request: {
-        number: 1
-      }
-    }
+const mockContext = {
+  repo: {
+    owner: 'test-owner',
+    repo: 'test-repo'
   },
+  payload: {
+    pull_request: {
+      number: 1
+    }
+  }
+} as any
+
+jest.unstable_mockModule('@actions/github', () => ({
+  context: mockContext,
   getOctokit: () => mockOctokit
 }))
 
@@ -420,6 +422,142 @@ spec:
     expect(core.setFailed).not.toHaveBeenCalled()
   })
 
+  it('should split large diffs into multiple comments when exceeding max_comment_char_len', async () => {
+    // Create YAML with multiple objects to generate a large diff
+    const sourceYaml = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app1
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.20
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app2
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: app
+        image: redis:6.0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config1
+data:
+  config.yaml: |
+    database:
+      host: localhost
+      port: 5432
+    features:
+      - feature1
+      - feature2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service1
+spec:
+  selector:
+    app: app1
+  ports:
+  - port: 80`
+
+    const targetYaml = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app1
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.21
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app2
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: app
+        image: redis:7.0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config1
+data:
+  config.yaml: |
+    database:
+      host: prod-db
+      port: 5432
+    features:
+      - feature1
+      - feature3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service1
+spec:
+  selector:
+    app: app1
+  ports:
+  - port: 8080`
+
+    // Mock getInput to return a very small max_comment_char_len to force splitting
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'current_manifests_path':
+          return 'source.yaml'
+        case 'target_manifests_path':
+          return 'target.yaml'
+        case 'github_token':
+          return 'test-token'
+        case 'max_comment_char_len':
+          return '2000' // Very small limit to force splitting
+        default:
+          return ''
+      }
+    })
+
+    mockReadFile.mockImplementation((filePath: unknown) => {
+      if (filePath === 'source.yaml') return Promise.resolve(sourceYaml)
+      if (filePath === 'target.yaml') return Promise.resolve(targetYaml)
+      return Promise.reject(new Error('File not found'))
+    })
+
+    await run()
+
+    // Should have called createComment multiple times due to splitting
+    expect(mockCreateComment).toHaveBeenCalledTimes(2)
+
+    // First comment should contain continuation text
+    const firstCall = mockCreateComment.mock.calls[0][0]
+    expect(firstCall.body).toContain('*Continued in next comment...*')
+    expect(firstCall.body).toContain('Found **4** differences')
+
+    // Second comment should have continuation header
+    const secondCall = mockCreateComment.mock.calls[1][0]
+    expect(secondCall.body).toContain('Kubernetes Manifests Diff (continued)')
+    expect(secondCall.body).toContain('**Summary:**')
+
+    expect(core.setFailed).not.toHaveBeenCalled()
+  })
+
   it('should fall back to console output when posting PR comment fails', async () => {
     const sourceYaml = `apiVersion: apps/v1
 kind: Deployment
@@ -431,7 +569,15 @@ spec:
     spec:
       containers:
       - name: app
-        image: nginx:1.20`
+        image: nginx:1.20
+---
+apiVersion: apps/v1
+kind: ConfigMap
+metadata:
+  name: test-app-config
+spec:
+  data:
+    key: value`
 
     const targetYaml = `apiVersion: apps/v1
 kind: Deployment
@@ -443,7 +589,15 @@ spec:
     spec:
       containers:
       - name: app
-        image: nginx:1.21`
+        image: nginx:1.21
+---
+apiVersion: apps/v1
+kind: ConfigMap
+metadata:
+  name: new-test-app-config
+spec:
+  data:
+    key: value`
 
     // Mock file reads
     mockReadFile.mockImplementation((filePath: unknown) => {
@@ -467,10 +621,78 @@ spec:
 
     // Should log the diff info to console as fallback
     expect(core.info).toHaveBeenCalledWith(
-      expect.stringContaining('Found 1 differences')
+      expect.stringContaining('Found 3 differences')
     )
 
     // Should not fail the action
     expect(core.setFailed).not.toHaveBeenCalled()
+  })
+
+  it('should fall back to console output if not in a PR context', async () => {
+    // Save original payload
+    const originalPayload = mockContext.payload
+
+    // Temporarily modify the context to remove PR context
+    mockContext.payload = {}
+
+    const sourceYaml = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.20
+---
+apiVersion: apps/v1
+kind: ConfigMap
+metadata:
+  name: test-app-config
+spec:
+  data:
+    key: value`
+
+    const targetYaml = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.21
+---
+apiVersion: apps/v1
+kind: ConfigMap
+metadata:
+  name: new-test-app-config
+spec:
+  data:
+    key: value`
+
+    // Mock file reads
+    mockReadFile.mockImplementation((filePath: unknown) => {
+      if (filePath === 'source.yaml') return Promise.resolve(sourceYaml)
+      if (filePath === 'target.yaml') return Promise.resolve(targetYaml)
+      return Promise.reject(new Error('File not found'))
+    })
+
+    await run()
+
+    // Should log the diff info to console as fallback
+    expect(core.info).toHaveBeenCalledWith(
+      expect.stringContaining('Found 3 differences')
+    )
+
+    // Should not fail the action
+    expect(core.setFailed).not.toHaveBeenCalled()
+
+    // Restore original payload
+    mockContext.payload = originalPayload
   })
 })

@@ -12,6 +12,7 @@ export class GitHubPRCommenter {
   private octokit: ReturnType<typeof github.getOctokit>
   private title: string
   private subtitle: string
+  private maxCommentLength: number
 
   /**
    * Creates a new GitHubPRCommenter instance.
@@ -19,15 +20,18 @@ export class GitHubPRCommenter {
    * @param token - GitHub personal access token for API authentication
    * @param title - Custom title for the diff comment
    * @param subtitle - Optional subtitle for additional context
+   * @param maxCommentLength - Maximum length for a comment before splitting
    */
   constructor(
     token: string,
     title: string = COMMENTS.DEFAULT_TITLE,
-    subtitle: string = ''
+    subtitle: string = '',
+    maxCommentLength: number = GITHUB.MAX_COMMENT_LENGTH
   ) {
     this.octokit = github.getOctokit(token)
     this.title = title
     this.subtitle = subtitle
+    this.maxCommentLength = maxCommentLength
   }
 
   /**
@@ -121,7 +125,6 @@ export class GitHubPRCommenter {
    */
   private formatDiffsAsComments(diffs: ManifestDiff[]): string[] {
     const comments: string[] = []
-    const maxCommentLength = GITHUB.MAX_COMMENT_LENGTH
 
     let currentComment = this.getCommentHeader(diffs)
     const footer = this.getCommentFooter(diffs)
@@ -135,7 +138,7 @@ export class GitHubPRCommenter {
       const reservedSpace = footer.length + GITHUB.COMMENT_LENGTH_BUFFER
       if (
         currentComment.length + diffSection.length + reservedSpace >
-        maxCommentLength
+        this.maxCommentLength
       ) {
         // Close current comment and start a new one
         comments.push(currentComment + continuationText)

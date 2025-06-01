@@ -35685,17 +35685,20 @@ class GitHubPRCommenter {
     octokit;
     title;
     subtitle;
+    maxCommentLength;
     /**
      * Creates a new GitHubPRCommenter instance.
      *
      * @param token - GitHub personal access token for API authentication
      * @param title - Custom title for the diff comment
      * @param subtitle - Optional subtitle for additional context
+     * @param maxCommentLength - Maximum length for a comment before splitting
      */
-    constructor(token, title = COMMENTS.DEFAULT_TITLE, subtitle = '') {
+    constructor(token, title = COMMENTS.DEFAULT_TITLE, subtitle = '', maxCommentLength = GITHUB.MAX_COMMENT_LENGTH) {
         this.octokit = githubExports.getOctokit(token);
         this.title = title;
         this.subtitle = subtitle;
+        this.maxCommentLength = maxCommentLength;
     }
     /**
      * Posts manifest differences as comments on a GitHub Pull Request.
@@ -35775,7 +35778,6 @@ class GitHubPRCommenter {
      */
     formatDiffsAsComments(diffs) {
         const comments = [];
-        const maxCommentLength = GITHUB.MAX_COMMENT_LENGTH;
         let currentComment = this.getCommentHeader(diffs);
         const footer = this.getCommentFooter(diffs);
         const continuationText = COMMENTS.CONTINUATION_TEXT;
@@ -35785,7 +35787,7 @@ class GitHubPRCommenter {
             // Reserve space for either the footer (if last comment) or continuation text
             const reservedSpace = footer.length + GITHUB.COMMENT_LENGTH_BUFFER;
             if (currentComment.length + diffSection.length + reservedSpace >
-                maxCommentLength) {
+                this.maxCommentLength) {
                 // Close current comment and start a new one
                 comments.push(currentComment + continuationText);
                 currentComment = this.replacePlaceholders(COMMENTS.CONTINUATION_HEADER, {
@@ -35998,6 +36000,8 @@ async function run() {
         const githubToken = coreExports.getInput('github_token') || process.env.GITHUB_TOKEN;
         const title = coreExports.getInput('title') || COMMENTS.DEFAULT_TITLE;
         const subtitle = coreExports.getInput('subtitle');
+        const maxCommentCharLen = parseInt(coreExports.getInput('max_comment_char_len') ||
+            GITHUB.MAX_COMMENT_LENGTH.toString(), 10);
         // Set the GitHub token as environment variable for the action
         if (!githubToken) {
             throw new Error('GitHub token is required but not provided.');
@@ -36007,7 +36011,7 @@ async function run() {
         coreExports.info(`Target branch: ${targetManifestsPath}`);
         const comparator = new ManifestComparator();
         const diffs = await comparator.computeDiffs(currentManifestsPath, targetManifestsPath);
-        const commenter = new GitHubPRCommenter(githubToken, title, subtitle);
+        const commenter = new GitHubPRCommenter(githubToken, title, subtitle, maxCommentCharLen);
         await commenter.postPullRequestComments(diffs);
     }
     catch (error) {
