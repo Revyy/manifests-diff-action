@@ -10,7 +10,6 @@ allowed:
   - isc
   - mit
   - cc0-1.0
-  - other
 
 ignored:
   npm:
