@@ -202,7 +202,7 @@ export class GitHubPRCommenter {
       )
       sections.push('```diff')
       sections.push(
-        this.formatObjectWithDiffSyntax(diff.currentObject, 'added')
+        this.formatObjectWithDiffSyntax(diff.currentObject.toJS(), 'added')
       )
       sections.push('```\n</details>\n')
     } else if (diff.status === 'removed' && diff.targetObject) {
@@ -211,7 +211,7 @@ export class GitHubPRCommenter {
       )
       sections.push('```diff')
       sections.push(
-        this.formatObjectWithDiffSyntax(diff.targetObject, 'removed')
+        this.formatObjectWithDiffSyntax(diff.targetObject.toJS(), 'removed')
       )
       sections.push('```\n</details>\n')
     } else {

@@ -1,9 +1,9 @@
 import * as fs from 'fs'
-import * as yaml from 'js-yaml'
+import { parseDocument } from 'yaml'
 import * as core from '@actions/core'
 
 import { createTwoFilesPatch } from 'diff'
-import { KubernetesObject, ManifestDiff } from './types.js'
+import { KubernetesObject, ManifestDiff, YamlDocument } from './types.js'
 import { KUBERNETES } from './constants.js'
 
 /**
@@ -48,8 +48,8 @@ export class ManifestComparator {
         })
       } else if (currentObj && targetObj) {
         // Compare objects
-        const currentYaml = yaml.dump(currentObj, { sortKeys: true })
-        const targetYaml = yaml.dump(targetObj, { sortKeys: true })
+        const currentYaml = currentObj.toString()
+        const targetYaml = targetObj.toString()
 
         if (currentYaml !== targetYaml) {
           const diff = createTwoFilesPatch(
@@ -85,16 +85,18 @@ export class ManifestComparator {
    */
   private async parseManifests(
     filePath: string
-  ): Promise<Map<string, KubernetesObject>> {
+  ): Promise<Map<string, YamlDocument>> {
     const content = await fs.promises.readFile(filePath, 'utf8')
-    const objects = new Map<string, KubernetesObject>()
+    const objects = new Map<string, YamlDocument>()
 
     try {
-      const documents = yaml.loadAll(content) as KubernetesObject[]
+      const documents: YamlDocument[] = content
+        .split(/^\s*---\s*$/m) // Split by '---'
+        .map((doc) => parseDocument(doc.trim())) // Parse each document
 
       for (const doc of documents) {
-        if (this.isValidKubernetesObject(doc)) {
-          const key = this.getObjectKey(doc)
+        if (this.isValidKubernetesObject(doc.toJS())) {
+          const key = this.getObjectKey(doc.toJS() as KubernetesObject)
           objects.set(key, doc)
         } else {
           throw new Error(
