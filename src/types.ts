@@ -1,3 +1,10 @@
+import { parseDocument } from 'yaml'
+
+/**
+ * Represents a parsed YAML document
+ */
+export type YamlDocument = ReturnType<typeof parseDocument>
+
 /**
  * Represents a Kubernetes object with basic metadata
  */
@@ -24,9 +31,9 @@ export interface ManifestDiff {
   /** The type of change detected in the manifest */
   status: 'added' | 'removed' | 'modified'
   /** The current state of the Kubernetes object (if it exists) */
-  currentObject?: KubernetesObject
+  currentObject?: YamlDocument
   /** The target state of the Kubernetes object (if it exists) */
-  targetObject?: KubernetesObject
+  targetObject?: YamlDocument
   /** Human-readable diff string showing the changes */
   diff?: string
 }
